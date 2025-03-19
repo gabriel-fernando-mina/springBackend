@@ -1,15 +1,11 @@
 package com.springbackend.webbackend.security;
 
+import com.springbackend.webbackend.repository.RevokedTokenRepository;
 import com.springbackend.webbackend.service.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,38 +15,40 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final UserDetailsService userDetailsService;
-    private final JwtCookieUtil jwtCookieUtil;
+    private final RevokedTokenRepository revokedTokenRepository;
 
     @Autowired
-    public JwtAuthenticationFilter(JwtService jwtService, @Lazy UserDetailsService userDetailsService, JwtCookieUtil jwtCookieUtil) {
+    public JwtAuthenticationFilter(JwtService jwtService, RevokedTokenRepository revokedTokenRepository) {
         this.jwtService = jwtService;
-        this.userDetailsService = userDetailsService;
-        this.jwtCookieUtil = jwtCookieUtil;
+        this.revokedTokenRepository = revokedTokenRepository;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        final String jwt = jwtCookieUtil.getJwtFromCookies(request);
+        String token = extractToken(request);
 
-        if (jwt == null) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        final String username = jwtService.extractUsername(jwt);
-
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
-            if (jwtService.isTokenValid(jwt, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+        if (token != null && jwtService.isTokenValid(token, null)) {
+            if (isTokenRevoked(token)) { // Ahora usa el metodo correcto
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"error\": \"Acceso denegado\", \"message\": \"Token inválido o revocado\"}");
+                return;
             }
         }
+
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isTokenRevoked(String token) {
+        return revokedTokenRepository.findByToken(token).isPresent();
+    }
+
+    private String extractToken(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        return null;
     }
 }

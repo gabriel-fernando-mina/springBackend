@@ -9,14 +9,15 @@ import org.springframework.stereotype.Component;
 public class JwtCookieUtil {
 
     private static final String COOKIE_NAME = "JWT_TOKEN";
-    private static final int COOKIE_EXPIRATION = 24 * 60 * 60; // 1 día
+    private static final int COOKIE_EXPIRATION = 24 * 60 * 60; // token expira en 1 día
 
     public void createJwtCookie(HttpServletResponse response, String token) {
         Cookie cookie = new Cookie(COOKIE_NAME, token);
         cookie.setHttpOnly(true);
-        cookie.setSecure(false); // ⚠️ Cambiar a true si usas HTTPS
+        cookie.setSecure(true); // ✅ Usar true en producción (HTTPS)
         cookie.setPath("/");
         cookie.setMaxAge(COOKIE_EXPIRATION);
+        cookie.setAttribute("SameSite", "Strict"); // 🔥 Previene CSRF
         response.addCookie(cookie);
     }
 
@@ -34,10 +35,10 @@ public class JwtCookieUtil {
     public void clearJwtCookie(HttpServletResponse response) {
         Cookie cookie = new Cookie(COOKIE_NAME, null);
         cookie.setHttpOnly(true);
-        cookie.setSecure(false);
+        cookie.setSecure(true);
         cookie.setPath("/");
         cookie.setMaxAge(0);
+        cookie.setAttribute("SameSite", "Strict");
         response.addCookie(cookie);
     }
 }
-

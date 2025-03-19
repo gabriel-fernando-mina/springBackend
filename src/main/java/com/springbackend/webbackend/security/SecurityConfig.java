@@ -1,5 +1,6 @@
 package com.springbackend.webbackend.security;
 
+import com.springbackend.webbackend.exception.JwtAuthenticationEntryPoint;
 import com.springbackend.webbackend.repository.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,12 +38,15 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login", "/api/auth/register").permitAll() // Login y registro públicos
                         .requestMatchers(HttpMethod.GET, "/api/products/**").hasAnyRole("USER", "ADMIN") // Todos pueden ver productos
-                        .requestMatchers(HttpMethod.POST, "/api/products").hasAnyAuthority("ADMIN", "ROLE_ADMIN")// 🔥 Solo ADMIN puede crear productos
+                        .requestMatchers(HttpMethod.POST, "/api/products").hasAnyAuthority("ADMIN", "ROLE_ADMIN") // 🔥 Solo ADMIN puede crear productos
                         .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN") // Solo ADMIN puede editar productos
                         .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN") // Solo ADMIN puede eliminar productos
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exception ->
+                        exception.authenticationEntryPoint(new JwtAuthenticationEntryPoint()) // 🔥 Agrega esto para manejar errores de autenticación
+                )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -75,6 +79,5 @@ public class SecurityConfig {
                 .or(() -> userRepository.findByEmail(usernameOrEmail))
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
     }
-
 
 }
