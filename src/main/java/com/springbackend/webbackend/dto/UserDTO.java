@@ -2,7 +2,6 @@ package com.springbackend.webbackend.dto;
 
 import com.springbackend.webbackend.model.RoleType;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,5 +25,7 @@ public class UserDTO {
 
     @NotBlank
     private String email;
+
+    private String mfaCode;
 
 }

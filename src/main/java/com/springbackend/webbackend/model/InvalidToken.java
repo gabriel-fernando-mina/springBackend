@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "invalid_tokens")
+@Table
 @Getter
 @Setter
 @NoArgsConstructor

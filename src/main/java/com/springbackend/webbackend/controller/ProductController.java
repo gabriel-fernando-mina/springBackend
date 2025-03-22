@@ -10,7 +10,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
@@ -58,22 +57,6 @@ public class ProductController {
         return processProductRequest(productDTO, result, true);
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<?> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductDTO productDTO, BindingResult result) {
-        if (result.hasErrors()) {
-            Map<String, String> errors = new HashMap<>();
-            for (FieldError error : result.getFieldErrors()) {
-                errors.put(error.getField(), error.getDefaultMessage());
-            }
-            return ResponseEntity.badRequest().body(errors);
-        }
-
-        Optional<ProductDTO> updatedProduct = productService.updateProduct(id, productDTO);
-        return updatedProduct
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
         if (productService.getProductById(id).isPresent()) {
@@ -83,51 +66,17 @@ public class ProductController {
         return ResponseEntity.notFound().build();
     }
 
-    // Para guardar el producto
-    private ResponseEntity<?> processProductRequest(ProductDTO productDTO, BindingResult result, boolean isNew, Long... id) {
-        if (result.hasErrors()) {
-            Map<String, String> errors = new HashMap<>();
-            for (FieldError error : result.getFieldErrors()) {
-                errors.put(error.getField(), error.getDefaultMessage());
-            }
-            return ResponseEntity.badRequest().body(errors);
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductDTO productDTO, BindingResult result) {
+        ResponseEntity<?> errorResponse = handleValidationErrors(result);
+        if (errorResponse != null) {
+            return errorResponse;
         }
 
-        if (!isNew) {
-            Optional<Product> existingProduct = productService.getProductById(id[0]);
-            if (existingProduct.isEmpty()) {
-                return ResponseEntity.notFound().build();
-            }
-            productDTO.setId(id[0]);
-        }
-
-        Product product = new Product();
-        product.setId(productDTO.getId());
-        product.setName(productDTO.getName());
-        product.setPrice(productDTO.getPrice());
-        product.setDescription(productDTO.getDescription());
-        product.setStock(productDTO.getStock());
-
-        // Verificar si categoryId no es null antes de buscar la categoría
-        if (productDTO.getCategoryId() != null) {
-            product.setCategory(productService.findCategoryById(productDTO.getCategoryId()));
-        } else {
-            product.setCategory(null);
-        }
-
-        // Modificar createProduct para aceptar Product o convertir Product a ProductDTO
-        ProductDTO savedProductDTO = productService.createProduct(new ProductDTO(
-                product.getId(),
-                product.getName(),
-                product.getPrice(),
-                product.getDescription(),
-                product.getStock(),
-                (product.getCategory() != null) ? product.getCategory().getId() : null
-        ));
-
-        return isNew
-                ? ResponseEntity.status(HttpStatus.CREATED).body(savedProductDTO)
-                : ResponseEntity.ok(savedProductDTO);
+        Optional<ProductDTO> updatedProduct = productService.updateProduct(id, productDTO);
+        return updatedProduct
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/category/{categoryId}")
@@ -150,4 +99,58 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProductsByCategoryName(name, pageable));
     }
 
+   // Para guardar el producto
+   private ResponseEntity<?> processProductRequest(ProductDTO productDTO, BindingResult result, boolean isNew, Long... id) {
+       ResponseEntity<?> errorResponse = handleValidationErrors(result);
+       if (errorResponse != null) {
+           return errorResponse;
+       }
+
+       if (!isNew) {
+           Optional<Product> existingProduct = productService.getProductById(id[0]);
+           if (existingProduct.isEmpty()) {
+               return ResponseEntity.notFound().build();
+           }
+           productDTO.setId(id[0]);
+       }
+
+       Product product = new Product();
+       product.setId(productDTO.getId());
+       product.setName(productDTO.getName());
+       product.setPrice(productDTO.getPrice());
+       product.setDescription(productDTO.getDescription());
+       product.setStock(productDTO.getStock());
+
+       // Verificar si categoryId no es null antes de buscar la categoría
+       if (productDTO.getCategoryId() != null) {
+           product.setCategory(productService.findCategoryById(productDTO.getCategoryId()));
+       } else {
+           product.setCategory(null);
+       }
+
+       // Modificar createProduct para aceptar Product o convertir Product a ProductDTO
+       ProductDTO savedProductDTO = productService.createProduct(new ProductDTO(
+               product.getId(),
+               product.getName(),
+               product.getPrice(),
+               product.getDescription(),
+               product.getStock(),
+               (product.getCategory() != null) ? product.getCategory().getId() : null
+       ));
+
+       return isNew
+               ? ResponseEntity.status(HttpStatus.CREATED).body(savedProductDTO)
+               : ResponseEntity.ok(savedProductDTO);
+   }
+
+    private ResponseEntity<?> handleValidationErrors(BindingResult result) {
+        if (result.hasErrors()) {
+            Map<String, String> errors = new HashMap<>();
+            for (FieldError error : result.getFieldErrors()) {
+                errors.put(error.getField(), error.getDefaultMessage());
+            }
+            return ResponseEntity.badRequest().body(errors);
+        }
+        return null;
+    }
 }

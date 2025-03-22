@@ -1,19 +1,23 @@
 package com.springbackend.webbackend.model;
 
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Column;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 import java.time.Instant;
 
 @Entity
-@Table(name = "revoked_tokens")
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder // 🔥 Esto habilita el patrón Builder
 public class RevokedToken {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -21,6 +25,18 @@ public class RevokedToken {
     @Column(nullable = false, unique = true)
     private String token;
 
-    @Column(nullable = false, updatable = false)
-    private Instant revokedAt;
+    @Column(nullable = false)
+    private String username;
+
+    @Column(nullable = false)
+    private boolean revoked;
+
+    @Column(nullable = false)
+    private boolean refreshToken;
+
+    @Column(nullable = false)
+    private Instant createdAt;
+
+    @Column(nullable = true)
+    private Instant revokedAt; // Asegúrate de tener este campo en la clase
 }

@@ -65,7 +65,7 @@ public class ProductServiceImpl implements ProductService {
         });
     }
 
-    // Métodos auxiliares para la conversión entre entidades y DTOs
+    // Metodos auxiliares para la conversión entre entidades y DTOs
     private ProductDTO convertToDTO(Product product) {
         return new ProductDTO(
                 product.getId(),

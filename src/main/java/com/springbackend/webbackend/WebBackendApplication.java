@@ -3,7 +3,7 @@ package com.springbackend.webbackend;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.springbackend.webbackend")
 public class WebBackendApplication {
 
     public static void main(String[] args) {

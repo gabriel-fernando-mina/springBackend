@@ -6,16 +6,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 public class UserMapper {
 
-    public static User fromDTO(UserDTO dto, PasswordEncoder passwordEncoder) {
-        if (dto.getRole() == null) {
-            throw new IllegalArgumentException("El rol es obligatorio (Ejemplo: 'ROLE_USER' o 'ROLE_ADMIN')");
+    public static User fromDTO(UserDTO userDto, PasswordEncoder passwordEncoder) {
+        if (userDto.getRole() == null) {
+            throw new IllegalArgumentException("El rol es obligatorio (Ejemplo: 'USER' o 'ADMIN')");
         }
 
         return User.builder()
-                .username(dto.getUsername())
-                .password(passwordEncoder.encode(dto.getPassword()))
-                .role(dto.getRole())
-                .email(dto.getEmail())
+                .username(userDto.getUsername())
+                .password(passwordEncoder.encode(userDto.getPassword()))
+                .role(userDto.getRole())
+                .email(userDto.getEmail())
                 .enabled(true)
                 .build();
     }

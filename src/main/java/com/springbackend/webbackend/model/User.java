@@ -1,5 +1,6 @@
 package com.springbackend.webbackend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
@@ -10,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 @Entity
-@Table(name = "users")
+@Table
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -29,38 +30,45 @@ public class User implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private RoleType role; // Ahora solo tiene un rol fijo
+    private RoleType role;
 
     @Column(nullable = false)
     @Builder.Default
     private boolean enabled = true;
 
-    @Column()
+    @Column
     private String email;
+
+    @Column
+    private String mfaSecret;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(role.name().startsWith("ROLE_") ? role.name() : "ROLE_" + role.name()));
+        return List.of(new SimpleGrantedAuthority("ROLE_" + this.role.name()));
     }
 
+
+
     @Override
+    @JsonIgnore
     public boolean isAccountNonExpired() {
         return true;
     }
 
     @Override
+    @JsonIgnore
     public boolean isAccountNonLocked() {
         return true;
     }
 
     @Override
+    @JsonIgnore
     public boolean isCredentialsNonExpired() {
         return true;
     }
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return enabled;
     }
-
 }

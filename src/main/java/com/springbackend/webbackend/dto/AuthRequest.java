@@ -19,4 +19,8 @@ public class AuthRequest {
     @NotBlank(message = "La contraseña no puede estar vacía")
     @Size(min = 6, message = "La contraseña debe tener al menos 6 caracteres")
     private String password;
+
+    @Size(min = 6, max = 6, message = "El código MFA debe tener 6 caracteres")
+    private String mfaCode;  // Agregado para almacenar el código MFA
 }
+
