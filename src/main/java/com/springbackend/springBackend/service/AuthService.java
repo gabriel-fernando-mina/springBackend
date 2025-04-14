@@ -44,7 +44,6 @@ public class AuthService {
         // Generar el token JWT
         return jwtService.generateToken(user, mfaEnabled);
     }
-
     /*
      * Verifica un código MFA antes de permitir el acceso.
      */
