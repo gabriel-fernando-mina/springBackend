@@ -54,24 +54,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             token = authorizationHeader.substring(7);
+        } else {
+            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Authorization header is missing or invalid");
+            return;
         }
 
         try {
-            if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 if (revokedTokenService.isTokenRevoked(token)) {
                     sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
                     return;
                 }
 
                 String username = jwtService.extractUsername(token);
-                String role = jwtService.extractRole(token);
+                String role = jwtService.extractRole(token); // Extraer el rol del token
 
-                if (jwtService.validateToken(token, username)) {
+                // Llamar a validateToken con los tres parámetros
+                if (jwtService.validateToken(token, username, role)) {
                     User userDetails = new User(username, "", List.of(() -> role));
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
+                    return;
                 }
             }
         } catch (Exception e) {

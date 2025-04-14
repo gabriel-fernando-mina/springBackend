@@ -10,6 +10,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
@@ -57,13 +58,11 @@ public class ProductController {
         return processProductRequest(productDTO, result, true);
     }
 
+    @PreAuthorize("hasRole('ADMIN')") // Solo los usuarios con rol ADMIN pueden eliminar productos
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
-        if (productService.getProductById(id).isPresent()) {
-            productService.deleteProduct(id);
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.notFound().build();
+        productService.deleteProduct(id); // Lógica para eliminar el producto
+        return ResponseEntity.noContent().build(); // Devuelve un 204 No Content
     }
 
     @PutMapping("/{id}")

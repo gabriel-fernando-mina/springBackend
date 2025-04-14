@@ -6,11 +6,11 @@ import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
 import org.springframework.stereotype.Service;
 
 @Service
-public class MFAService {
+public class MfaService {
 
     private final GoogleAuthenticator googleAuthenticator;
 
-    public MFAService() {
+    public MfaService() {
         GoogleAuthenticatorConfig config = new GoogleAuthenticatorConfig.GoogleAuthenticatorConfigBuilder()
                 .setTimeStepSizeInMillis(30000) // Tiempo de expiración del código
                 .setWindowSize(5) // Número de intentos permitidos

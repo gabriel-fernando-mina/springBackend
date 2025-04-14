@@ -1,5 +1,6 @@
 package com.springbackend.webbackend.service;
 
+import com.springbackend.webbackend.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -9,7 +10,10 @@ import org.springframework.cglib.core.internal.Function;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
+import java.util.Base64;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class JwtService {
@@ -21,22 +25,37 @@ public class JwtService {
     private long expiration;
 
     private SecretKey getSigningKey() {
-        return Keys.hmacShaKeyFor(secretKey.getBytes());
+        byte[] decodedKey = Base64.getDecoder().decode(secretKey); // Decodificar Base64
+        return Keys.hmacShaKeyFor(decodedKey);
     }
 
-    public String generateToken(UserDetails userDetails) {
+    public String generateToken(User user, boolean mfaEnabled) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("username", user.getUsername());
+        claims.put("email", user.getEmail());
+        claims.put("role", user.getRole());
+        claims.put("mfaValidated", !mfaEnabled);
+
         return Jwts.builder()
-                .setSubject(userDetails.getUsername())
-                .claim("role", userDetails.getAuthorities().iterator().next().getAuthority()) // Obtiene el primer rol
+                .setClaims(claims)
+                .setSubject(user.getUsername())
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expiration)) // Usar el tiempo de expiración definido
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256) // Corrección aquí
                 .compact();
     }
 
-    public Boolean validateToken(String token, String username) {
+    public Boolean validateToken(String token, String username, String expectedRole) {
         final String extractedUsername = extractUsername(token);
-        return (extractedUsername.equals(username) && !isTokenExpired(token));
+        final String extractedRole = extractRole(token);
+
+        if (extractedRole == null) {
+            throw new IllegalArgumentException("Role is missing from the token");
+        }
+
+        return (extractedUsername.equals(username)
+                && extractedRole.equals(expectedRole)
+                && !isTokenExpired(token));
     }
 
     public String extractUsername(String token) {
@@ -44,7 +63,13 @@ public class JwtService {
     }
 
     public String extractRole(String token) {
-        return extractClaim(token, claims -> claims.get("role", String.class));
+        return extractClaim(token, claims -> {
+            String role = claims.get("role", String.class);
+            if (role == null) {
+                throw new IllegalArgumentException("Role claim is missing in the token");
+            }
+            return role;
+        });
     }
 
     private Boolean isTokenExpired(String token) {

@@ -7,13 +7,10 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
 public class AuthResponse {
     private String token;
-    private String refreshToken; // Opcional
 
-    // Constructor adicional solo con token
     public AuthResponse(String token) {
         this.token = token;
     }
