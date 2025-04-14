@@ -10,7 +10,7 @@
     </parent>
 
     <groupId>com.spring-backend</groupId>
-    <artifactId>web-backend</artifactId>
+    <artifactId>springBackend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>web-backend</name>
 
