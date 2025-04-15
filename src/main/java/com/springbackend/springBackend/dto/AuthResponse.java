@@ -1,16 +1,25 @@
 package com.springbackend.springBackend.dto;
 
-import lombok.Getter;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-@Getter
-@Setter
+/**
+ * DTO para encapsular la respuesta de autenticación con tokens.
+ */
+@Data
+@AllArgsConstructor
 @NoArgsConstructor
 public class AuthResponse {
-    private String token;
+    private String accessToken;  // Nuevo token de acceso (JWT)
+    private String refreshToken; // Refresh token actual
+    private String message;      // Mensaje adicional (por ejemplo, "MFA requerido")
 
-    public AuthResponse(String token) {
-        this.token = token;
+    /**
+     * Constructor para solo el token de acceso.
+     */
+    public AuthResponse(String accessToken) {
+        this.accessToken = accessToken;
     }
 }
+

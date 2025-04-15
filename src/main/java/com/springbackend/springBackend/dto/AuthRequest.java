@@ -1,16 +1,17 @@
 package com.springbackend.springBackend.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
-@Setter
-@Getter
+/**
+ * DTO para credenciales de inicio de sesión.
+ */
+@Data
 public class AuthRequest {
 
-    @NotBlank(message = "El campo email o username no puede estar vacío")
-    private String emailOrUsername;
+    @NotBlank(message = "El nombre de usuario o correo electrónico es obligatorio.")
+    private String usernameOrEmail;
 
-    @NotBlank(message = "El campo contraseña no puede estar vacío")
+    @NotBlank(message = "La contraseña es obligatoria.")
     private String password;
 }
