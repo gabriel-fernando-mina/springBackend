@@ -11,11 +11,14 @@ import java.util.Collection;
 import java.util.List;
 
 @Entity
-@Table
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Table(name = "users", indexes = {
+        @Index(name = "idx_username", columnList = "username"),
+        @Index(name = "idx_email", columnList = "email")
+})
 public class User implements UserDetails {
 
     @Id
@@ -30,7 +33,7 @@ public class User implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private RoleType role;
+    private RoleType role;  // Un solo rol
 
     @Column(nullable = false)
     @Builder.Default
@@ -42,12 +45,16 @@ public class User implements UserDetails {
     @Column
     private String mfaSecret;
 
+    @Setter
+    @Getter
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean mfaEnabled = false;  // Nuevo campo para indicar si MFA está habilitado
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + this.role.name()));
     }
-
-
 
     @Override
     @JsonIgnore

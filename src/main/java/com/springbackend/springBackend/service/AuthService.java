@@ -1,92 +1,80 @@
 package com.springbackend.springBackend.service;
 
-import com.springbackend.springBackend.dto.AuthRequest;
-import com.springbackend.springBackend.dto.MfaRequest;
-import com.springbackend.springBackend.dto.UserDTO;
+import com.springbackend.springBackend.dto.*;
+import com.springbackend.springBackend.exception.InvalidMfaCodeException;
 import com.springbackend.springBackend.model.User;
-import com.springbackend.springBackend.repository.UserRepository;
-import com.springbackend.springBackend.util.JwtCookieUtil;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final AuthenticationManager authenticationManager;
-    private final JwtService jwtService;
-    private final JwtCookieUtil jwtCookieUtil;
-    private final RevokedTokenService revokedTokenService;
-    private final MfaService mfaService;
     private final UserService userService;
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final TokenService tokenService;
+    private final MfaService mfaService; // Integración de MfaService
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
     /**
-     * Autentica a un usuario y devuelve un token JWT.
-     */
-    public String authenticate(AuthRequest authRequest) {
-        // Buscar al usuario por email o username
-        User user = userService.findByEmailOrUsername(authRequest.getEmailOrUsername())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        // Validar la contraseña
-        if (!passwordEncoder.matches(authRequest.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Contraseña incorrecta");
-        }
-
-        // Verificar si el usuario tiene MFA habilitado
-        boolean mfaEnabled = user.getMfaSecret() != null && !user.getMfaSecret().isEmpty();
-
-        // Generar el token JWT
-        return jwtService.generateToken(user, mfaEnabled);
-    }
-    /*
-     * Verifica un código MFA antes de permitir el acceso.
-     */
-    /**
-     * Verifica el código MFA de un usuario.
+     * Autentica al usuario y genera tokens JWT de acceso y de refresco.
      *
-     * @param username El nombre de usuario.
-     * @param mfaCode El código MFA proporcionado.
-     * @return true si el código MFA es válido, false de lo contrario.
+     * @param authRequest Datos de autenticación proporcionados por el usuario.
+     * @return Respuesta con los tokens generados y un mensaje de éxito.
      */
-    public boolean verifyMfaCode(String username, String mfaCode) {
-        // Buscar usuario por username
-        User user = userService.findUserByUsername(username);
+    public AuthResponse authenticateUserAndGenerateTokens(AuthRequest authRequest) {
+        try {
+            // Autenticar al usuario
+            User user = userService.authenticate(authRequest.getUsernameOrEmail(), authRequest.getPassword());
 
-        // Validar el código MFA
-        return mfaService.verifyCode(user.getMfaSecret(), mfaCode);
+            // Verificar si MFA está habilitado
+            if (user.getMfaSecret() != null && !user.getMfaSecret().isEmpty()) {
+                logger.info("El usuario {} tiene MFA habilitado. Requiere verificación adicional.", user.getUsername());
+                return new AuthResponse(null, null, "Se requiere MFA para completar la autenticación.");
+            }
+
+            // Generar tokens JWT usando TokenService
+            String accessToken = tokenService.generateToken(user.getUsername(), user.getRole(), user.getMfaSecret() != null);
+            String refreshToken = tokenService.createRefreshToken(user);
+
+            logger.info("Autenticación exitosa para el usuario: {}", user.getUsername());
+            return new AuthResponse(accessToken, refreshToken, "Inicio de sesión exitoso");
+        } catch (ResponseStatusException e) {
+            logger.warn("Intento de inicio de sesión fallido para: {}", authRequest.getUsernameOrEmail());
+            throw e; // Re-lanzar la excepción para que el controlador la maneje.
+        } catch (Exception e) {
+            logger.error("Error inesperado durante el inicio de sesión: {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error inesperado durante el inicio de sesión");
+        }
     }
 
     /**
-     * Agrega el token JWT a la respuesta HTTP.
+     * Verifica el código MFA y genera tokens JWT de acceso y de refresco.
+     *
+     * @param mfaRequest Datos de la solicitud de verificación MFA.
+     * @return Respuesta con los tokens generados y un mensaje de éxito.
+     * @throws InvalidMfaCodeException Si el código MFA no es válido.
      */
-    public void addJwtToResponse(HttpServletResponse response, String token) {
-        jwtCookieUtil.createCookie(response, token);
-    }
-
-    /**
-     * Registra un nuevo usuario en base a un DTO
-     */
-    public User registerUser(UserDTO userDTO) {
-        return userService.registerUser(userDTO);
-    }
-
-    public String verifyMfaCodeAndGenerateToken(MfaRequest mfaRequest) {
-        // Buscar al usuario por username
-        User user = userService.findUserByUsername(mfaRequest.getUsername());
-
-        // Validar el código MFA
-        boolean isMfaValid = mfaService.verifyCode(user.getMfaSecret(), mfaRequest.getMfaCode());
-        if (!isMfaValid) {
-            throw new RuntimeException("Código MFA incorrecto");
+    public AuthResponse verifyMfaAndGenerateTokens(MfaRequest mfaRequest) {
+        // Verificar el código MFA
+        boolean isValid = mfaService.verifyCode(mfaRequest.getUsername(), mfaRequest.getMfaCode());
+        if (!isValid) {
+            logger.warn("Código MFA inválido para el usuario: {}", mfaRequest.getUsername());
+            throw new InvalidMfaCodeException("Código MFA inválido.");
         }
 
-        // Generar un nuevo token JWT con MFA validado
-        return jwtService.generateToken(user, false); // Ahora MFA está validado
+        // Obtener el usuario mediante UserService
+        User user = userService.findByUsernameOrEmail(mfaRequest.getUsername());
+
+        // Generar tokens
+        String accessToken = tokenService.generateToken(user.getUsername(), user.getRole(), user.getMfaSecret() != null);
+        String refreshToken = tokenService.createRefreshToken(user);
+
+        logger.info("Autenticación MFA exitosa para el usuario: {}", mfaRequest.getUsername());
+
+        return new AuthResponse(accessToken, refreshToken, "Autenticación MFA exitosa");
     }
 }

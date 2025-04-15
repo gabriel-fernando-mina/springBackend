@@ -1,14 +1,11 @@
 package com.springbackend.springBackend.model;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Data;
 
+@Data
 @Entity
 @Table(name = "products")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 public class Product {
 
     @Id
@@ -27,7 +24,7 @@ public class Product {
     @Column(nullable = false)
     private Integer stock;
 
-    @ManyToOne
-    @JoinColumn(name = "category_id", nullable = false) // Si la categoría puede ser nula, usa nullable = true
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 }

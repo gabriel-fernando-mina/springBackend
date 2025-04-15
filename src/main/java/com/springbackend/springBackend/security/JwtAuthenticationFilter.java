@@ -1,98 +1,112 @@
 package com.springbackend.springBackend.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.springbackend.springBackend.service.JwtService;
-import com.springbackend.springBackend.service.RevokedTokenService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.lang.NonNull;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
+import com.springbackend.springBackend.service.TokenService;
+import com.springbackend.springBackend.service.UserService;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import org.springframework.web.filter.OncePerRequestFilter;
 
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Filtro personalizado que verifica el token JWT en cookies o encabezados.
+ * Si el token es válido, autentica al usuario en el contexto de seguridad de Spring.
+ */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private final RevokedTokenService revokedTokenService;
+    private final TokenService tokenService;
+    private final UserService userService;
 
-    @Autowired
-    @Lazy
-    private final JwtService jwtService;
+    private static final String TOKEN_COOKIE_NAME = "JWT_TOKEN";
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final List<String> PUBLIC_ENDPOINTS = List.of(
+            "/api/auth/register",
+            "/api/auth/login",
+            "/api/auth/verify-mfa"
+    );
 
-    private final List<String> excludedPaths = List.of("/api/auth/register", "/api/auth/login", "/api/auth/verify-mfa");
-
-    public JwtAuthenticationFilter(JwtService jwtService, RevokedTokenService revokedTokenService) {
-        this.jwtService = jwtService;
-        this.revokedTokenService = revokedTokenService;
+    public JwtAuthenticationFilter(TokenService tokenService, UserService userService) {
+        this.tokenService = tokenService;
+        this.userService = userService;
     }
 
     @Override
-    protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String requestPath = request.getServletPath();
+        // Excluir todos los endpoints públicos
+        return PUBLIC_ENDPOINTS.stream().anyMatch(requestPath::equals);
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String requestPath = request.getServletPath();
-        if (excludedPaths.contains(requestPath)) {
-            filterChain.doFilter(request, response);
-            return;
+        String token = extractTokenFromCookies(request);
+        if (token == null) {
+            token = extractTokenFromRequest(request);
         }
 
-        final String authorizationHeader = request.getHeader("Authorization");
-        String token = null;
-
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            token = authorizationHeader.substring(7);
-        } else {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Authorization header is missing or invalid");
-            return;
-        }
-
-        try {
-            if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                if (revokedTokenService.isTokenRevoked(token)) {
-                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
+        if (token != null) {
+            try {
+                // Validar el token utilizando el servicio centralizado TokenService
+                if (!tokenService.isTokenValid(token)) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("Unauthorized: Invalid or Expired Token");
                     return;
                 }
 
-                String username = jwtService.extractUsername(token);
-                String role = jwtService.extractRole(token); // Extraer el rol del token
+                // Extraer el nombre de usuario del token
+                String username = tokenService.getUsernameFromToken(token);
 
-                // Llamar a validateToken con los tres parámetros
-                if (jwtService.validateToken(token, username, role)) {
-                    User userDetails = new User(username, "", List.of(() -> role));
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // Si el usuario no está autenticado, configurar el contexto de seguridad
+                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    // Usar el UserService personalizado para cargar los detalles del usuario
+                    UserDetails userDetails = userService.loadUserByUsername(username);
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                } else {
-                    sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
-                    return;
                 }
+            } catch (Exception e) {
+                // En caso de error (token inválido, expirado, etc.), limpiar el contexto de seguridad y responder con 401
+                SecurityContextHolder.clearContext();
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("Unauthorized: Invalid or Expired Token");
+                return;
             }
-        } catch (Exception e) {
-            logger.error("Failed to authenticate user with token", e);
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Failed to authenticate token");
-            return;
         }
 
+        // Continuar con la siguiente cadena de filtros
         filterChain.doFilter(request, response);
     }
 
-    private void sendErrorResponse(HttpServletResponse response, int status, String message) throws IOException {
-        response.setStatus(status);
-        response.setContentType("application/json");
-        response.getWriter().write(objectMapper.writeValueAsString(Map.of("error", message)));
+    private String extractTokenFromCookies(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            return Arrays.stream(cookies)
+                    .filter(cookie -> TOKEN_COOKIE_NAME.equals(cookie.getName()))
+                    .map(Cookie::getValue)
+                    .findFirst()
+                    .orElse(null);
+        }
+        return null;
+    }
+
+    private String extractTokenFromRequest(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7); // Extraer el token sin el prefijo "Bearer "
+        }
+        return null;
     }
 }

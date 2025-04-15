@@ -1,11 +1,17 @@
 package com.springbackend.springBackend.dto;
 
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
 
-@Getter
-@Setter
+/**
+ * DTO para solicitud de validación de MFA.
+ */
+@Data
 public class MfaRequest {
+
+    @NotBlank(message = "El nombre de usuario es obligatorio.")
     private String username;
+
+    @NotBlank(message = "El código MFA es obligatorio.")
     private String mfaCode;
 }
